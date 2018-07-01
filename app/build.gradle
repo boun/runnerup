@@ -11,8 +11,8 @@ def doExtractStringFromManifest(name) {
 }
 
 android {
-    compileSdkVersion rootProject.ext.compileSdkVersion
-    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdkVersion 26
+    buildToolsVersion '27.0.3'
 
     dexOptions {
         // Skip pre-dexing when running on Travis CI or when disabled via -Dpre-dex=false.
@@ -116,19 +116,17 @@ dependencies {
     implementation project(':common')
     implementation project(':hrdevice')
     latestWearApp project(':wear')
-
     latestImplementation "com.android.support:design:${rootProject.ext.supportLibrary}"
     //Lint bug: https://issuetracker.google.com/issues/231321
     //noinspection GradleDependency
-    froyoImplementation 'com.android.support:design:24.1.0' //SDK <10 dropped in 24.2
-
+    froyoImplementation 'com.android.support:design:24.1.0'
+    //SDK <10 dropped in 24.2
     latestImplementation "com.google.android.gms:play-services-wearable:${rootProject.ext.googlePlayServicesVersion}"
     latestImplementation 'com.getpebble:pebblekit:4.0.1'
-    latestImplementation ('com.mapbox.mapboxsdk:mapbox-android-sdk:5.1.1@aar'){
-        transitive=true
+    latestImplementation('com.mapbox.mapboxsdk:mapbox-android-sdk:5.1.1@aar') {
+        transitive = true
     }
     implementation 'com.jjoe64:graphview:4.2.1'
-
     testImplementation "junit:junit:${rootProject.ext.junitVersion}"
     testImplementation "org.mockito:mockito-core:${rootProject.ext.mockitoVersion}"
 }
