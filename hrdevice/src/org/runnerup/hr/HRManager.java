@@ -113,6 +113,10 @@ public class HRManager {
             return new MockHRProvider(ctx);
         }
 
+        if (src.contentEquals(ContentproviderHRDevice.NAME)) {
+            return new ContentproviderHRDevice(ctx);
+        }
+
         return null;
     }
 
@@ -146,6 +150,10 @@ public class HRManager {
 
         if (experimental && Bt20Base.checkLibrary(ctx)) {
             providers.add(new Bt20Base.StHRMv1(ctx));
+        }
+
+        if (experimental) {
+            providers.add(new ContentproviderHRDevice(ctx));
         }
 
         if (checkAntPlusLibrary()) {
