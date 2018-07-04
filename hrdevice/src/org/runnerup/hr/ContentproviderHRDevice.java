@@ -3,6 +3,7 @@ package org.runnerup.hr;
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.database.ContentObserver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Handler;
@@ -13,15 +14,41 @@ import java.util.List;
 
 public class ContentproviderHRDevice implements HRProvider {
 
+    private Context ctx;
     private HRClient hrClient = null;
     private Handler hrClientHandler = null;
     public static final String NAME = "ContentproviderHRDevice";
     private static final Uri GADGETBRIDGE_AUTHORITY = Uri.parse("content://com.gadgetbridge.heartrate.provider");
+    private static final Uri realtime_uri = GADGETBRIDGE_AUTHORITY.buildUpon().appendPath("realtime").build();
+    private static final Uri devices = GADGETBRIDGE_AUTHORITY.buildUpon().appendPath("devices").build();
+    private static final Uri start_uri = GADGETBRIDGE_AUTHORITY.buildUpon().appendPath("activity_start").build();
+    private static final Uri stop_uri = GADGETBRIDGE_AUTHORITY.buildUpon().appendPath("activity_stop").build();
 
-    private Context ctx;
 
-    public ContentproviderHRDevice(Context ctx) {
-        super();
+    /**
+     * This is registered with the ContentResolver updates the hrValue and hrTimestamp
+     */
+    private ContentObserver mObserver = new ContentObserver(null) {
+
+        @Override
+        public void onChange(boolean selfChange, Uri uri) {
+            super.onChange(selfChange, uri);
+            Log.e(ContentproviderHRDevice.class.getName(), "Changed " + uri.toString());
+
+            Cursor cursor = ctx.getContentResolver().query(realtime_uri, null, null, null, null);
+            if (cursor.moveToFirst()) {
+                do {
+                    String status = cursor.getString(0);
+                    hrValue = cursor.getInt(1);
+                    hrTimestamp = System.currentTimeMillis();
+                    Log.i(ContentproviderHRDevice.class.getName(), "HeartRate " + hrValue);
+                } while (cursor.moveToNext());
+            }
+            cursor.close();
+        }
+    };
+
+    ContentproviderHRDevice(Context ctx) {
         this.ctx = ctx;
     }
 
@@ -41,34 +68,40 @@ public class ContentproviderHRDevice implements HRProvider {
         this.hrClient = hrClient;
         this.hrClientHandler = handler;
 
-        Log.e(getClass().getName(), "open");
-
-        getDevices();
-
-        //TODO: Subscribe to Contentprovider
         hrClient.onOpenResult(true);
     }
 
+    private void startGBRealtime() {
+        Cursor cursor = ctx.getContentResolver().query(start_uri, null, null, null, null);
+        if (cursor == null)
+            return;
+
+        cursor.close();
+    }
+
+    private void stopGBRealtime() {
+        Cursor cursor = ctx.getContentResolver().query(stop_uri, null, null, null, null);
+        if (cursor == null)
+            return;
+
+        cursor.close();
+
+    }
+
     private List<HRDeviceRef> getDevices() {
-
         List<HRDeviceRef> ret = new ArrayList<>();
-
         ContentResolver resolver = ctx.getContentResolver();
-        Uri devices = GADGETBRIDGE_AUTHORITY.buildUpon().appendPath("devices").build();
 
-        Log.e(getClass().getName(), "Sending Query to " + devices.toString());
+        Log.i(getClass().getName(), "Sending Query to " + devices.toString());
 
         Cursor cursor = resolver.query(devices, null, null, null, null);
         if (cursor != null && cursor.moveToFirst()) {
             do {
                 String deviceName = cursor.getString(0);
-                String deviceModel = cursor.getString(1);
                 String deviceAddress = cursor.getString(2);
                 ret.add(HRDeviceRef.create(getProviderName(), deviceName, deviceAddress));
-                // do something meaningful
             } while (cursor.moveToNext());
-        } else {
-            Log.e(getClass().getName(), "No Reults from Curosr");
+            cursor.close();
         }
         return ret;
     }
@@ -78,7 +111,7 @@ public class ContentproviderHRDevice implements HRProvider {
         Log.e(getClass().getName(), "close");
     }
 
-    boolean mIsScanning = false;
+    private boolean mIsScanning = false;
 
     @Override
     public boolean isScanning() {
@@ -91,9 +124,15 @@ public class ContentproviderHRDevice implements HRProvider {
 
         Log.e(getClass().getName(), "StartScan");
 
-        //TODO maybe move to thread
-        for (HRDeviceRef dev: getDevices())
-            hrClient.onScanResult(dev);
+        final List<HRDeviceRef> devices = getDevices();
+        hrClientHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                for (HRDeviceRef dev : devices)
+                    hrClient.onScanResult(dev);
+            }
+        });
+
     }
 
     @Override
@@ -102,8 +141,8 @@ public class ContentproviderHRDevice implements HRProvider {
         mIsScanning = false;
     }
 
-    boolean mIsConnecting = false;
-    boolean mIsConnected = false;
+    private boolean mIsConnecting = false;
+    private boolean mIsConnected = false;
 
     @Override
     public boolean isConnected() {
@@ -126,40 +165,34 @@ public class ContentproviderHRDevice implements HRProvider {
             return;
 
         mIsConnecting = true;
-        hrClientHandler.postDelayed(new Runnable() {
+        hrClientHandler.post(new Runnable() {
             @Override
             public void run() {
                 if (mIsConnecting) {
                     mIsConnected = true;
                     mIsConnecting = false;
                     hrClient.onConnectResult(true);
-                    hrClientHandler.postDelayed(hrUpdate, 750);
                 }
             }
-        }, 3000);
+        });
+        ctx.getContentResolver().registerContentObserver(realtime_uri, false, mObserver);
+        startGBRealtime();
     }
-
-    final Runnable hrUpdate = new Runnable() {
-        @Override
-        public void run() {
-            hrValue = (int) (150 + 40 * Math.random());
-            hrTimestamp = System.currentTimeMillis();
-            if (mIsConnected == true) {
-                hrClientHandler.postDelayed(hrUpdate, 750);
-            }
-        }
-    };
 
     @Override
     public void disconnect() {
         Log.e(getClass().getName(), "disconnect");
 
+        ctx.getContentResolver().unregisterContentObserver(mObserver);
+
+        stopGBRealtime();
+
         mIsConnecting = false;
         mIsConnected = false;
     }
 
-    int hrValue = 0;
-    long hrTimestamp = 0;
+    private int hrValue = 0;
+    private long hrTimestamp = 0;
 
     @Override
     public int getHRValue() {
