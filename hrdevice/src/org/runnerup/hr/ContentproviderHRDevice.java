@@ -39,9 +39,14 @@ public class ContentproviderHRDevice implements HRProvider {
             if (cursor.moveToFirst()) {
                 do {
                     String status = cursor.getString(0);
+                    if (!status.equals("OK"))
+                        continue;
+
                     hrValue = cursor.getInt(1);
+                    stepsValue = cursor.getInt(2);
+                    batteryLevel = cursor.getInt(3);
                     hrTimestamp = System.currentTimeMillis();
-                    Log.i(ContentproviderHRDevice.class.getName(), "HeartRate " + hrValue);
+                    Log.i(ContentproviderHRDevice.class.getName(), String.format("HeartRate %d Steps %d Battery %d", hrValue, stepsValue, batteryLevel));
                 } while (cursor.moveToNext());
             }
             cursor.close();
@@ -71,8 +76,9 @@ public class ContentproviderHRDevice implements HRProvider {
         hrClient.onOpenResult(true);
     }
 
-    private void startGBRealtime() {
-        Cursor cursor = ctx.getContentResolver().query(start_uri, null, null, null, null);
+    private void startGBRealtime(HRDeviceRef ref) {
+
+        Cursor cursor = ctx.getContentResolver().query(start_uri, null, null, new String[]{ref.getAddress()}, null);
         if (cursor == null)
             return;
 
@@ -156,7 +162,7 @@ public class ContentproviderHRDevice implements HRProvider {
 
     @Override
     public void connect(HRDeviceRef ref) {
-        Log.e(getClass().getName(), "connect");
+        Log.e(getClass().getName(), String.format("connect to %s", ref.toString()));
 
         if (mIsConnected)
             return;
@@ -165,6 +171,8 @@ public class ContentproviderHRDevice implements HRProvider {
             return;
 
         mIsConnecting = true;
+
+        // Notify on client's thread
         hrClientHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -175,8 +183,9 @@ public class ContentproviderHRDevice implements HRProvider {
                 }
             }
         });
-        ctx.getContentResolver().registerContentObserver(realtime_uri, false, mObserver);
-        startGBRealtime();
+        ctx.getContentResolver().registerContentObserver(realtime_uri, true, mObserver);
+
+        startGBRealtime(ref);
     }
 
     @Override
@@ -193,6 +202,8 @@ public class ContentproviderHRDevice implements HRProvider {
 
     private int hrValue = 0;
     private long hrTimestamp = 0;
+    private int batteryLevel = 0;
+    private int stepsValue = 0;
 
     @Override
     public int getHRValue() {
@@ -230,6 +241,7 @@ public class ContentproviderHRDevice implements HRProvider {
 
     @Override
     public boolean startEnableIntent(Activity activity, int requestCode) {
+        //TODO should I start gadgetbridge here??
         return false;
     }
 }
