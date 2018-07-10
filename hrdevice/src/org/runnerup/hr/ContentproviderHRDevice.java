@@ -18,7 +18,7 @@ public class ContentproviderHRDevice implements HRProvider {
     private HRClient hrClient = null;
     private Handler hrClientHandler = null;
     public static final String NAME = "ContentproviderHRDevice";
-    private static final Uri GADGETBRIDGE_AUTHORITY = Uri.parse("content://com.gadgetbridge.heartrate.provider");
+    private static final Uri GADGETBRIDGE_AUTHORITY = Uri.parse("content://nodomain.freeyourgadget.gadgetbridge.realtimesamples.provider");
     private static final Uri realtime_uri = GADGETBRIDGE_AUTHORITY.buildUpon().appendPath("realtime").build();
     private static final Uri devices = GADGETBRIDGE_AUTHORITY.buildUpon().appendPath("devices").build();
     private static final Uri start_uri = GADGETBRIDGE_AUTHORITY.buildUpon().appendPath("activity_start").build();
@@ -78,6 +78,8 @@ public class ContentproviderHRDevice implements HRProvider {
 
     private void startGBRealtime(HRDeviceRef ref) {
 
+        String deviceAddress = ref != null ? ref.getAddress() : "";
+        // TODO if there is no device, what should I do here??
         Cursor cursor = ctx.getContentResolver().query(start_uri, null, null, new String[]{ref.getAddress()}, null);
         if (cursor == null)
             return;
@@ -171,6 +173,8 @@ public class ContentproviderHRDevice implements HRProvider {
             return;
 
         mIsConnecting = true;
+
+        // TODO: If there is no device, there is no point in returning OK
 
         // Notify on client's thread
         hrClientHandler.post(new Runnable() {
